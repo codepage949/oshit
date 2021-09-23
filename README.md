@@ -14,5 +14,5 @@ go build -ldflags -H=windowsgui -o oshit.exe ./main
 
 # 메모
 
-* SendInput 보다 ImmSimulateHotKey나 WM_INPUTLANGCHANGEREQUEST를 사용하고 싶었지만 예상대로 동작하지 않아 포기. 최종적으론 보다 매끄러운 처리를 위해선 두 가지 중 하나를 적용하는 것이 바람직해 보임
+* ref https://stackoverflow.com/questions/64280975/immgetcontext-returns-zero-always
 * 시프트 단일키는 RegisterHotKey로 핫키 등록이 불가해 전역 키보드 훅을 사용함

@@ -38,11 +38,14 @@ type KBDLLHOOKSTRUCT struct {
 type Hookproc func(int32, uintptr, unsafe.Pointer) uintptr
 
 const (
-	INPUT_KEYBOARD  = 1
-	WH_KEYBOARD_LL  = 13
-	VK_LSHIFT       = 0xA0
-	VK_HANGUL       = 0x15
-	KEYEVENTF_KEYUP = 0x2
-	WM_KEYDOWN      = 0x100
-	WM_KEYUP        = 0x101
+	INPUT_KEYBOARD        = 1
+	WH_KEYBOARD_LL        = 13
+	VK_LSHIFT             = 0xA0
+	VK_HANGUL             = 0x15
+	KEYEVENTF_KEYUP       = 0x2
+	WM_KEYDOWN            = 0x100
+	WM_KEYUP              = 0x101
+	WM_IME_CONTROL        = 643
+	IMC_GETCONVERSIONMODE = 1
+	IMC_SETCONVERSIONMODE = 2
 )

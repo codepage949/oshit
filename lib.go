@@ -20,11 +20,10 @@ func keyboardHook(nCode int32, wParam uintptr, lParam unsafe.Pointer) uintptr {
 			}
 		} else if wParam == winapi.WM_KEYUP {
 			if lShiftAlone {
-				inputs := []winapi.INPUT{
-					{Type: winapi.INPUT_KEYBOARD, DUMMYUNIONNAME: *(*winapi.INPUTUNION)(unsafe.Pointer(&winapi.KEYBDINPUT{WVk: winapi.VK_HANGUL}))},
-					{Type: winapi.INPUT_KEYBOARD, DUMMYUNIONNAME: *(*winapi.INPUTUNION)(unsafe.Pointer(&winapi.KEYBDINPUT{WVk: winapi.VK_HANGUL, DwFlags: winapi.KEYEVENTF_KEYUP}))},
-				}
-				_ = winapi.SendInput(uint32(len(inputs)), &inputs[0], int32(unsafe.Sizeof(inputs[0])))
+				// https://stackoverflow.com/questions/64280975/immgetcontext-returns-zero-always
+				hwnd := winapi.ImmGetDefaultIMEWnd(winapi.GetForegroundWindow())
+				mode := 1 ^ winapi.SendMessage(hwnd, winapi.WM_IME_CONTROL, winapi.IMC_GETCONVERSIONMODE, 0)
+				_ = winapi.SendMessage(hwnd, winapi.WM_IME_CONTROL, winapi.IMC_SETCONVERSIONMODE, mode)
 			}
 		}
 	} else {

@@ -7,11 +7,12 @@ import (
 )
 
 var (
-	user32             = syscall.NewLazyDLL("user32.dll")
-	_GetMessage        = user32.NewProc("GetMessageA")
-	_SetWindowsHookExA = user32.NewProc("SetWindowsHookExA")
-	_CallNextHookEx    = user32.NewProc("CallNextHookEx")
-	_SendInput         = user32.NewProc("SendInput")
+	user32               = syscall.NewLazyDLL("user32.dll")
+	_GetMessage          = user32.NewProc("GetMessageA")
+	_SetWindowsHookExA   = user32.NewProc("SetWindowsHookExA")
+	_CallNextHookEx      = user32.NewProc("CallNextHookEx")
+	_GetForegroundWindow = user32.NewProc("GetForegroundWindow")
+	_SendMessage = user32.NewProc("SendMessageW")
 )
 
 func GetMessage(m *MSG, hwnd uintptr, wMsgFilterMin, wMsgFilterMax uint32) int32 {
@@ -35,8 +36,25 @@ func CallNextHookEx(hhk uintptr, nCode int32, wParam uintptr, lParam unsafe.Poin
 	return int32(r)
 }
 
-func SendInput(cInputs uint32, pInputs *INPUT, cbSize int32) int32 {
-	r, _, _ := _SendInput.Call(uintptr(cInputs), uintptr(unsafe.Pointer(pInputs)), uintptr(cbSize))
+func GetForegroundWindow() uintptr {
+	r, _, _ := _GetForegroundWindow.Call()
 
-	return int32(r)
+	return r
+}
+
+func SendMessage(hwnd uintptr, msg uint32, wparam, lparam uintptr) uintptr {
+	r, _, _ := _SendMessage.Call(hwnd, uintptr(msg), wparam, lparam)
+
+	return r
+}
+
+var (
+	imm32                   = syscall.NewLazyDLL("imm32.dll")
+	_ImmGetDefaultIMEWnd    = imm32.NewProc("ImmGetDefaultIMEWnd")
+)
+
+func ImmGetDefaultIMEWnd(hwnd uintptr) uintptr {
+	r, _, _ := _ImmGetDefaultIMEWnd.Call(hwnd)
+
+	return r
 }
