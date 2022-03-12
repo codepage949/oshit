@@ -35,6 +35,11 @@ type KBDLLHOOKSTRUCT struct {
 	VkCode uint32
 }
 
+type COMPOSITIONFORM struct {
+    Style uint8
+	_ [192]byte
+}
+
 type Hookproc func(int32, uintptr, unsafe.Pointer) uintptr
 
 const (
@@ -45,7 +50,10 @@ const (
 	KEYEVENTF_KEYUP       = 0x2
 	WM_KEYDOWN            = 0x100
 	WM_KEYUP              = 0x101
-	WM_IME_CONTROL        = 643
+	WM_IME_CONTROL        = 0x283
+	IMC_GETCOMPOSITIONWINDOW = 0xB
+	IMC_SETCOMPOSITIONWINDOW = 0xC
 	IMC_GETCONVERSIONMODE = 1
 	IMC_SETCONVERSIONMODE = 2
+	CFS_EXCLUDE = 0x80
 )

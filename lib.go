@@ -22,6 +22,9 @@ func keyboardHook(nCode int32, wParam uintptr, lParam unsafe.Pointer) uintptr {
 			if lShiftAlone {
 				// https://stackoverflow.com/questions/64280975/immgetcontext-returns-zero-always
 				hwnd := winapi.ImmGetDefaultIMEWnd(winapi.GetForegroundWindow())
+				// COMPOSITIONFORM에 사용하는 CFS_EXCLUDE에 대한 참고 자료가 없으나 실제로 해보면 composition window가 나타나지 않음
+				cf := winapi.COMPOSITIONFORM{Style: winapi.CFS_EXCLUDE}
+				_ = winapi.SendMessage(hwnd, winapi.WM_IME_CONTROL, winapi.IMC_SETCOMPOSITIONWINDOW, uintptr(unsafe.Pointer(&cf)))
 				mode := 1 ^ winapi.SendMessage(hwnd, winapi.WM_IME_CONTROL, winapi.IMC_GETCONVERSIONMODE, 0)
 				_ = winapi.SendMessage(hwnd, winapi.WM_IME_CONTROL, winapi.IMC_SETCONVERSIONMODE, mode)
 			}
