@@ -15,8 +15,8 @@ type MSG struct {
 }
 
 type INPUTUNION struct {
-	_ [20]byte // fixed
-	_ uintptr  // non-fixed
+	_ [20]byte // NOTE: fixed
+	_ uintptr  // NOTE: non-fixed
 }
 
 type INPUT struct {
@@ -36,24 +36,24 @@ type KBDLLHOOKSTRUCT struct {
 }
 
 type COMPOSITIONFORM struct {
-    Style uint8
-	_ [192]byte
+	Style uint8
+	_     [192]byte
 }
 
 type Hookproc func(int32, uintptr, unsafe.Pointer) uintptr
 
 const (
-	INPUT_KEYBOARD        = 1
-	WH_KEYBOARD_LL        = 13
-	VK_LSHIFT             = 0xA0
-	VK_HANGUL             = 0x15
-	KEYEVENTF_KEYUP       = 0x2
-	WM_KEYDOWN            = 0x100
-	WM_KEYUP              = 0x101
-	WM_IME_CONTROL        = 0x283
+	INPUT_KEYBOARD           = 1
+	WH_KEYBOARD_LL           = 13
+	VK_LSHIFT                = 0xA0
+	VK_HANGUL                = 0x15
+	KEYEVENTF_KEYUP          = 0x2
+	WM_KEYDOWN               = 0x100
+	WM_KEYUP                 = 0x101
+	WM_IME_CONTROL           = 0x283
 	IMC_GETCOMPOSITIONWINDOW = 0xB
 	IMC_SETCOMPOSITIONWINDOW = 0xC
-	IMC_GETCONVERSIONMODE = 1
-	IMC_SETCONVERSIONMODE = 2
-	CFS_EXCLUDE = 0x80
+	IMC_GETCONVERSIONMODE    = 1
+	IMC_SETCONVERSIONMODE    = 2
+	CFS_EXCLUDE              = 0x80
 )

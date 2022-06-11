@@ -1,4 +1,4 @@
-// ref https://play.golang.org/p/2JzHDalGN7Q
+// NOTE: https://play.golang.org/p/2JzHDalGN7Q
 package winapi
 
 import (
@@ -7,12 +7,14 @@ import (
 )
 
 var (
-	user32               = syscall.NewLazyDLL("user32.dll")
-	_GetMessage          = user32.NewProc("GetMessageA")
-	_SetWindowsHookExA   = user32.NewProc("SetWindowsHookExA")
-	_CallNextHookEx      = user32.NewProc("CallNextHookEx")
-	_GetForegroundWindow = user32.NewProc("GetForegroundWindow")
-	_SendMessage = user32.NewProc("SendMessageW")
+	user32                    = syscall.NewLazyDLL("user32.dll")
+	_GetMessage               = user32.NewProc("GetMessageA")
+	_SetWindowsHookExA        = user32.NewProc("SetWindowsHookExA")
+	_CallNextHookEx           = user32.NewProc("CallNextHookEx")
+	_GetForegroundWindow      = user32.NewProc("GetForegroundWindow")
+	_SendMessage              = user32.NewProc("SendMessageW")
+	_GetKeyboardLayout        = user32.NewProc("GetKeyboardLayout")
+	_GetWindowThreadProcessId = user32.NewProc("GetWindowThreadProcessId")
 )
 
 func GetMessage(m *MSG, hwnd uintptr, wMsgFilterMin, wMsgFilterMax uint32) int32 {
@@ -48,13 +50,36 @@ func SendMessage(hwnd uintptr, msg uint32, wparam, lparam uintptr) uintptr {
 	return r
 }
 
+func GetKeyboardLayout(idThread uint32) uintptr {
+	r, _, _ := _GetKeyboardLayout.Call(uintptr(idThread))
+
+	return r
+}
+
+func GetWindowThreadProcessId(hwnd uintptr, processId uintptr) uintptr {
+	r, _, _ := _GetWindowThreadProcessId.Call(hwnd, processId)
+
+	return r
+}
+
 var (
-	imm32                   = syscall.NewLazyDLL("imm32.dll")
-	_ImmGetDefaultIMEWnd    = imm32.NewProc("ImmGetDefaultIMEWnd")
+	imm32                = syscall.NewLazyDLL("imm32.dll")
+	_ImmGetDefaultIMEWnd = imm32.NewProc("ImmGetDefaultIMEWnd")
 )
 
 func ImmGetDefaultIMEWnd(hwnd uintptr) uintptr {
 	r, _, _ := _ImmGetDefaultIMEWnd.Call(hwnd)
+
+	return r
+}
+
+var (
+	kernel32            = syscall.NewLazyDLL("kernel32.dll")
+	_GetCurrentThreadId = kernel32.NewProc("GetCurrentThreadId")
+)
+
+func GetCurrentThreadId() uintptr {
+	r, _, _ := _GetCurrentThreadId.Call()
 
 	return r
 }
