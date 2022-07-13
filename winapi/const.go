@@ -56,4 +56,5 @@ const (
 	IMC_GETCONVERSIONMODE    = 1
 	IMC_SETCONVERSIONMODE    = 2
 	CFS_EXCLUDE              = 0x80
+	HC_ACTION                = 0
 )
