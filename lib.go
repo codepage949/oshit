@@ -44,6 +44,12 @@ func keyboardHook(nCode int32, wParam uintptr, lParam unsafe.Pointer) uintptr {
 					otherPressedCount += 1
 					otherPressedMap[kb.VkCode] = true
 				}
+
+				// NOTE: LWIN+RETURN => 눌린 키 맵 초기화
+				if otherPressedMap[winapi.VK_LWIN] && otherPressedMap[winapi.VK_RETURN] {
+					otherPressedCount = 0
+					otherPressedMap = map[uint32]bool{}
+				}
 			} else { // NOTE: WM_*UP
 				if otherPressedMap[kb.VkCode] {
 					otherPressedCount -= 1

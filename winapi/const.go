@@ -57,4 +57,6 @@ const (
 	IMC_SETCONVERSIONMODE    = 2
 	CFS_EXCLUDE              = 0x80
 	HC_ACTION                = 0
+	VK_LWIN                  = 0x5B
+	VK_RETURN                = 0xD
 )
