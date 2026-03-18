@@ -1,9 +1,11 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use std::io::Write;
 use std::mem::size_of;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
+use windows::Win32::System::SystemInformation::GetLocalTime;
 use windows::Win32::System::Threading::GetCurrentThreadId;
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP,
@@ -14,6 +16,57 @@ use windows::Win32::UI::WindowsAndMessaging::{
     HHOOK, KBDLLHOOKSTRUCT, MSG, WH_KEYBOARD_LL, WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN,
     WM_SYSKEYUP, WM_USER,
 };
+
+fn log_path() -> String {
+    std::env::var("USERPROFILE")
+        .map(|home| format!("{}/oshit.log", home))
+        .unwrap_or_else(|_| "oshit.log".to_string())
+}
+
+fn write_log(msg: &str) {
+    if let Ok(mut file) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log_path())
+    {
+        let _ = file.write_all(msg.as_bytes());
+    }
+}
+
+fn local_time_str() -> String {
+    unsafe {
+        let st = GetLocalTime();
+        format!(
+            "{:04}-{:02}-{:02} {:02}:{:02}:{:02}",
+            st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond
+        )
+    }
+}
+
+fn setup_panic_hook() {
+    std::panic::set_hook(Box::new(|info| {
+        let payload = info
+            .payload()
+            .downcast_ref::<&str>()
+            .copied()
+            .or_else(|| info.payload().downcast_ref::<String>().map(|s| s.as_str()))
+            .unwrap_or("알 수 없음");
+
+        let location = info
+            .location()
+            .map(|l| format!("{}:{}:{}", l.file(), l.line(), l.column()))
+            .unwrap_or_else(|| "알 수 없는 위치".to_string());
+
+        let msg = format!(
+            "[{}] PANIC: {} (위치: {})\n",
+            local_time_str(),
+            payload,
+            location
+        );
+        write_log(&msg);
+        std::process::exit(1);
+    }));
+}
 
 static LSHIFT_ALONE: AtomicBool = AtomicBool::new(false);
 static MAIN_THREAD_ID: AtomicU32 = AtomicU32::new(0);
@@ -101,6 +154,9 @@ fn toggle_ime() {
 }
 
 fn main() {
+    setup_panic_hook();
+    write_log(&format!("[{}] 프로세스 시작\n", local_time_str()));
+
     unsafe {
         MAIN_THREAD_ID.store(GetCurrentThreadId(), Ordering::SeqCst);
     }
@@ -114,11 +170,21 @@ fn main() {
 
     let mut msg = MSG::default();
     unsafe {
-        while GetMessageW(&mut msg, HWND::default(), 0, 0).as_bool() {
+        loop {
+            let ret = GetMessageW(&mut msg, HWND::default(), 0, 0);
+            if !ret.as_bool() {
+                write_log(&format!(
+                    "[{}] 메시지 루프 종료 (GetMessageW 반환: {:?})\n",
+                    local_time_str(),
+                    ret
+                ));
+                break;
+            }
             if msg.message == WM_TOGGLE_IME {
                 toggle_ime();
             }
         }
         let _ = UnhookWindowsHookEx(hook);
     }
+    write_log(&format!("[{}] 프로세스 정상 종료\n", local_time_str()));
 }
