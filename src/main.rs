@@ -77,6 +77,9 @@ const LLKHF_INJECTED: u32 = 0x00000010;
 
 unsafe extern "system" fn keyboard_hook(n_code: i32, w_param: WPARAM, l_param: LPARAM) -> LRESULT {
     if n_code >= 0 {
+        if l_param.0 == 0 {
+            return unsafe { CallNextHookEx(HHOOK::default(), n_code, w_param, l_param) };
+        }
         let kb = unsafe { &*(l_param.0 as *const KBDLLHOOKSTRUCT) };
 
         // SendInput으로 주입된 키는 무시 (VK_HANGUL 재진입 방지)
@@ -172,11 +175,19 @@ fn main() {
     unsafe {
         loop {
             let ret = GetMessageW(&mut msg, HWND::default(), 0, 0);
+            if ret.0 == -1 {
+                let err = windows::Win32::Foundation::GetLastError();
+                write_log(&format!(
+                    "[{}] 메시지 루프 오류 (GetMessageW = -1, LastError = {:?})\n",
+                    local_time_str(),
+                    err
+                ));
+                break;
+            }
             if !ret.as_bool() {
                 write_log(&format!(
-                    "[{}] 메시지 루프 종료 (GetMessageW 반환: {:?})\n",
-                    local_time_str(),
-                    ret
+                    "[{}] 메시지 루프 종료 (WM_QUIT)\n",
+                    local_time_str()
                 ));
                 break;
             }
