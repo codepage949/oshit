@@ -6,6 +6,9 @@ edition = "2024"
 [build-dependencies]
 embed-resource = "3"
 
+[dependencies]
+toml_edit = "0.22"
+
 [dependencies.windows]
 version = "0.58"
 features = [
