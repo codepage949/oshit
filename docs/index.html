@@ -1,0 +1,760 @@
+<!doctype html>
+<html lang="ko">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>oshit</title>
+  <meta name="description" content="왼쪽 Shift를 한/영키 대신 사용하는 Windows 유틸리티." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Noto+Sans+KR:wght@400;500;700&display=swap"
+    rel="stylesheet" />
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f3f0e8;
+      --panel: rgba(255, 255, 255, 0.68);
+      --panel-strong: rgba(255, 255, 255, 0.82);
+      --text: #171614;
+      --muted: #6a675f;
+      --line: rgba(23, 22, 20, 0.08);
+      --accent: #0f766e;
+      --accent-soft: rgba(15, 118, 110, 0.12);
+      --warm: #e6a91a;
+      --shadow: 0 18px 48px rgba(34, 28, 21, 0.08);
+      --state-gradient-current: linear-gradient(120deg, #ff7b00 0%, #ffd166 18%, #ff4d6d 36%, #f9418e 54%, #72efdd 72%, #4cc9f0 86%, #4361ee 100%);
+      --state-gradient-next: linear-gradient(120deg, #ff7b00 0%, #ffd166 18%, #ff4d6d 36%, #f9418e 54%, #72efdd 72%, #4cc9f0 86%, #4361ee 100%);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      min-height: 100%;
+      background:
+        radial-gradient(circle at top left, rgba(15, 118, 110, 0.08), transparent 28%),
+        radial-gradient(circle at bottom right, rgba(230, 169, 26, 0.1), transparent 22%),
+        linear-gradient(180deg, #f7f5ef 0%, #f1ede5 100%);
+    }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      color: var(--text);
+      font-family: "Noto Sans KR", sans-serif;
+      background:
+        linear-gradient(rgba(23, 22, 20, 0.018) 1px, transparent 1px);
+      background-size: 100% 32px;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(circle at 15% 14%, rgba(15, 118, 110, 0.08), transparent 18%),
+        radial-gradient(circle at 82% 16%, rgba(230, 169, 26, 0.08), transparent 16%);
+    }
+
+    .page-shell {
+      position: relative;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      min-height: 100vh;
+      width: min(880px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 28px 0 72px;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-mark {
+      display: inline-flex;
+      width: 36px;
+      height: 36px;
+      align-items: center;
+      justify-content: center;
+      border-radius: 10px;
+      background: var(--accent);
+      color: #f6f3ed;
+      font-family: "Space Grotesk", sans-serif;
+      font-weight: 700;
+    }
+
+    .brand-copy strong,
+    .brand-copy span,
+    .release-label,
+    .lshift-label {
+      font-family: "Space Grotesk", sans-serif;
+    }
+
+    .brand-copy {
+      display: grid;
+      gap: 2px;
+      padding: 6px 10px 7px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.52);
+      border: 1px solid rgba(23, 22, 20, 0.06);
+      box-shadow: 0 10px 24px rgba(23, 22, 20, 0.05);
+      backdrop-filter: blur(14px) saturate(140%);
+      -webkit-backdrop-filter: blur(14px) saturate(140%);
+    }
+
+    .brand-copy strong {
+      display: block;
+      font-size: 1.02rem;
+      line-height: 1;
+      letter-spacing: -0.03em;
+    }
+
+    .brand-copy span {
+      display: block;
+      color: var(--accent);
+      font-size: 0.74rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .layout {
+      display: grid;
+      justify-items: center;
+      align-content: start;
+      padding-top: clamp(40px, 9vh, 108px);
+    }
+
+    .hero-main {
+      display: grid;
+      gap: 20px;
+      width: min(100%, 560px);
+      justify-items: center;
+    }
+
+    .release-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px) saturate(140%);
+      -webkit-backdrop-filter: blur(18px) saturate(140%);
+    }
+
+    .state-demo {
+      width: min(100%, 560px);
+    }
+
+    .release-label {
+      margin: 0 0 10px;
+      color: var(--muted);
+      font-size: 0.72rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .state-track {
+      position: relative;
+      height: clamp(5.9rem, 14vw, 8.4rem);
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.08em;
+      font-family: "Space Grotesk", "Noto Sans KR", sans-serif;
+      font-size: clamp(4.8rem, 13vw, 7.2rem);
+      font-weight: 700;
+      letter-spacing: -0.08em;
+    }
+
+    .state-word {
+      position: relative;
+      width: 6.6ch;
+      height: 1.08em;
+      overflow: hidden;
+    }
+
+    .state-word span {
+      position: absolute;
+      inset: 0;
+      transition:
+        clip-path 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+        opacity 0.28s ease-out;
+    }
+
+    .state-word span::before,
+    .state-word span::after {
+      content: attr(data-text);
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      white-space: nowrap;
+      background-size: 220% 220%;
+      background-position: 20% 50%;
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      will-change: clip-path;
+    }
+
+    .state-word span::before {
+      background-image: var(--state-gradient-current);
+      clip-path: inset(0 0 0 0);
+    }
+
+    .state-word span::after {
+      background-image: var(--state-gradient-next);
+      clip-path: polygon(0 0, 0 0, 0 100%, 0 100%);
+      opacity: 0;
+    }
+
+    .state-demo.is-recoloring .state-word span::after {
+      opacity: 1;
+      animation: recolor-diagonal-right 0.84s cubic-bezier(0.22, 0.7, 0.2, 1) forwards;
+    }
+
+    .state-han {
+      opacity: 1;
+      clip-path: inset(0 0 0 0);
+      transition:
+        clip-path 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+        opacity 0.28s ease-out;
+    }
+
+    .state-eng {
+      opacity: 1;
+      clip-path: inset(0 0 0 100%);
+      transition:
+        clip-path 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+        opacity 0.28s ease-out;
+    }
+
+    .state-demo[data-state="han"] .state-han {
+      opacity: 1;
+      clip-path: inset(0 0 0 0);
+    }
+
+    .state-demo[data-state="han"] .state-eng {
+      clip-path: inset(0 0 0 100%);
+    }
+
+    .state-demo[data-state="eng"] .state-han {
+      clip-path: inset(0 100% 0 0);
+    }
+
+    .state-demo[data-state="eng"] .state-eng {
+      opacity: 1;
+      clip-path: inset(0 0 0 0);
+    }
+
+    .shift-prompt {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      color: var(--text);
+      font-family: "Space Grotesk", "Noto Sans KR", sans-serif;
+      font-size: clamp(1.24rem, 2.9vw, 1.72rem);
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      cursor: pointer;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      outline: none;
+    }
+
+    .shift-prompt:focus-visible {
+      outline: none;
+    }
+
+    .shift-icon {
+      position: relative;
+      display: inline-grid;
+      width: 66px;
+      height: 66px;
+      place-items: center;
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid rgba(23, 22, 20, 0.08);
+      box-shadow: 0 10px 28px rgba(23, 22, 20, 0.08);
+      backdrop-filter: blur(14px) saturate(140%);
+      -webkit-backdrop-filter: blur(14px) saturate(140%);
+      color: var(--accent);
+      transform-origin: center;
+    }
+
+    .shift-icon-core {
+      display: grid;
+      justify-items: center;
+      gap: 1px;
+      line-height: 1;
+    }
+
+    .shift-icon-arrow {
+      font-size: 1.42rem;
+      font-weight: 700;
+      transform: translateY(1px);
+    }
+
+    .shift-icon-label {
+      font-family: "Space Grotesk", sans-serif;
+      font-size: 0.66rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--text);
+    }
+
+    .shift-icon::before,
+    .shift-icon::after {
+      content: "";
+      position: absolute;
+      inset: -8px;
+      border-radius: 24px;
+      border: 1.5px solid rgba(15, 118, 110, 0.18);
+      opacity: 0;
+      transform: scale(0.84);
+      animation: shift-wave 1.5s ease-out infinite;
+      pointer-events: none;
+    }
+
+    .shift-icon::after {
+      animation-delay: 0.38s;
+    }
+
+    .shift-icon-ring {
+      position: absolute;
+      inset: -16px;
+      border-radius: 28px;
+      border: 1px solid rgba(15, 118, 110, 0.12);
+      opacity: 0;
+      transform: scale(0.74);
+      animation: shift-wave 1.5s ease-out infinite 0.76s;
+      pointer-events: none;
+    }
+
+    .shift-icon.is-pressed {
+      transform: translateY(2px) scale(0.97);
+      box-shadow: 0 6px 16px rgba(23, 22, 20, 0.08);
+    }
+
+    .shift-copy {
+      color: var(--muted);
+    }
+
+    .release-card {
+      width: 100%;
+      padding: 16px;
+      border-radius: 18px;
+    }
+
+    .release-card-top {
+      width: auto;
+      min-width: 112px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      box-shadow: none;
+    }
+
+    .release-version {
+      margin: 0;
+      font-family: "Space Grotesk", sans-serif;
+      font-size: clamp(1.6rem, 3vw, 2.2rem);
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .release-card-top .release-label {
+      margin-bottom: 4px;
+      font-size: 0.62rem;
+    }
+
+    .release-card-top .release-version {
+      font-size: 1rem;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      min-height: 48px;
+      padding: 0 18px;
+      border-radius: 14px;
+      border: 1px solid transparent;
+      background: var(--text);
+      color: #f7f5ef;
+      font-weight: 700;
+      text-decoration: none;
+      transition:
+        transform 0.2s ease,
+        background-color 0.2s ease,
+        box-shadow 0.2s ease;
+    }
+
+    .button:hover {
+      background: #2a2a2a;
+      transform: translateY(-1px);
+      box-shadow: 0 12px 24px rgba(23, 22, 20, 0.12);
+    }
+
+    .button-top {
+      width: auto;
+      min-height: 40px;
+      padding: 0 14px;
+      border-radius: 12px;
+      font-size: 0.9rem;
+    }
+
+    @keyframes rise {
+      from {
+        opacity: 0;
+        transform: translateY(24px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes shift-wave {
+      0% {
+        opacity: 0.38;
+        transform: scale(0.82);
+      }
+
+      70% {
+        opacity: 0.08;
+      }
+
+      100% {
+        opacity: 0;
+        transform: scale(1.42);
+      }
+    }
+
+    @keyframes recolor-diagonal-right {
+      0% {
+        clip-path: polygon(0 0, 12% 0, 0 100%, 0 100%);
+      }
+
+      100% {
+        clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
+      }
+    }
+
+    @media (max-width: 840px) {
+      .page-shell {
+        width: min(100% - 20px, 880px);
+        min-height: auto;
+        padding-top: 18px;
+        padding-bottom: 44px;
+      }
+
+      .topbar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .hero-main,
+      .state-demo,
+      .release-card,
+      .button {
+        width: 100%;
+      }
+
+      .topbar-actions {
+        width: 100%;
+        flex-wrap: wrap;
+      }
+
+      .release-card-top,
+      .button-top {
+        width: auto;
+      }
+
+      .shift-prompt {
+        gap: 12px;
+        font-size: 1.12rem;
+      }
+
+      .layout {
+        padding-top: clamp(28px, 6vh, 56px);
+      }
+
+      .shift-icon {
+        width: 56px;
+        height: 56px;
+        border-radius: 16px;
+      }
+
+      .shift-icon-arrow {
+        font-size: 1.18rem;
+      }
+
+      .shift-icon-label {
+        font-size: 0.52rem;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="page-shell">
+    <div class="topbar">
+      <div class="brand">
+        <div class="brand-copy">
+          <strong>oshit</strong>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <div class="release-card release-card-top" aria-live="polite">
+          <p class="release-label">Latest</p>
+          <p class="release-version" id="release-version">불러오는 중</p>
+        </div>
+        <a class="button button-top" id="download-button" href="https://github.com/codepage949/oshit/releases"
+          target="_blank" rel="noreferrer">
+          다운로드
+        </a>
+      </div>
+    </div>
+
+    <main class="layout">
+      <section class="hero-main">
+        <div class="state-demo" id="state-demo" data-state="eng">
+          <div class="state-track" aria-live="polite">
+            <span class="state-word">
+              <span class="state-han" data-text="오싯!"></span>
+              <span class="state-eng" data-text="OSHIT!"></span>
+            </span>
+          </div>
+        </div>
+        <div class="shift-prompt" id="shift-prompt" tabindex="0" aria-label="왼쪽 Shift 데모 입력 영역">
+          <span class="shift-icon" id="demo-key" aria-hidden="true">
+            <span class="shift-icon-ring"></span>
+            <span class="shift-icon-core">
+              <span class="shift-icon-arrow">⇧</span>
+              <span class="shift-icon-label">LShift</span>
+            </span>
+          </span>
+          <span class="shift-copy">눌러 한/영을 전환하세요!</span>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script>
+    const owner = "codepage949";
+    const repo = "oshit";
+    const releasesUrl = `https://github.com/${owner}/${repo}/releases`;
+    const latestReleaseApiUrl = `https://api.github.com/repos/${owner}/${repo}/releases/latest`;
+
+    const releaseVersion = document.querySelector("#release-version");
+    const downloadButton = document.querySelector("#download-button");
+    const demoKey = document.querySelector("#demo-key");
+    const shiftPrompt = document.querySelector("#shift-prompt");
+    const stateDemo = document.querySelector("#state-demo");
+    const rootStyle = document.documentElement.style;
+    const gradientColors = ["#ff5400", "#ff7b00", "#ffb703", "#ffd166", "#ff4d6d", "#f9418e", "#d65db1", "#9d4edd", "#00a896", "#72efdd", "#4cc9f0", "#4361ee"];
+    let demoState = "eng";
+    let leftShiftDown = false;
+    let leftShiftAlone = false;
+    let leftShiftStartedAt = 0;
+    let releaseTimer = null;
+    let recolorTimer = null;
+
+    function setDemoState(nextState) {
+      demoState = nextState;
+      stateDemo.dataset.state = nextState;
+    }
+
+    function pickGradientColors(pool, count) {
+      const picked = [];
+
+      while (picked.length < count) {
+        const color = pool[Math.floor(Math.random() * pool.length)];
+        if (!picked.includes(color)) {
+          picked.push(color);
+        }
+      }
+
+      return picked;
+    }
+
+    function createGradient(pool) {
+      const angle = 70 + Math.floor(Math.random() * 111);
+      const colors = pickGradientColors(pool, 6);
+      const stops = [];
+
+      for (let index = 0; index < colors.length; index += 1) {
+        const base = index * (100 / (colors.length - 1));
+        const variance = (Math.random() * 10) - 5;
+        const stop = Math.max(0, Math.min(100, base + variance));
+        stops.push(`${colors[index]} ${stop.toFixed(1)}%`);
+      }
+
+      return {
+        image: `linear-gradient(${angle}deg, ${stops.join(", ")})`,
+      };
+    }
+
+    function applyInitialGradient() {
+      const gradient = createGradient(gradientColors);
+      rootStyle.setProperty("--state-gradient-current", gradient.image);
+      rootStyle.setProperty("--state-gradient-next", gradient.image);
+    }
+
+    function queueNextGradient() {
+      const gradient = createGradient(gradientColors);
+      rootStyle.setProperty("--state-gradient-next", gradient.image);
+    }
+
+    function pulseRecolor() {
+      stateDemo.classList.remove("is-recoloring");
+      void stateDemo.offsetWidth;
+      stateDemo.classList.add("is-recoloring");
+      window.clearTimeout(recolorTimer);
+      recolorTimer = window.setTimeout(() => {
+        stateDemo.classList.remove("is-recoloring");
+        const next = getComputedStyle(document.documentElement).getPropertyValue("--state-gradient-next").trim();
+        rootStyle.setProperty("--state-gradient-current", next);
+      }, 1100);
+    }
+
+    function pulseDemoKey() {
+      demoKey.classList.add("is-pressed");
+      window.clearTimeout(releaseTimer);
+      releaseTimer = window.setTimeout(() => {
+        demoKey.classList.remove("is-pressed");
+      }, 160);
+    }
+
+    function focusDemoPrompt() {
+      shiftPrompt.focus({ preventScroll: true });
+    }
+
+    function resetShiftTracking() {
+      leftShiftDown = false;
+      leftShiftAlone = false;
+      leftShiftStartedAt = 0;
+    }
+
+    function hasConflictingModifier(event) {
+      return event.altKey || event.ctrlKey || event.metaKey;
+    }
+
+    function toggleDemoState() {
+      const nextState = demoState === "han" ? "eng" : "han";
+      queueNextGradient();
+      pulseRecolor();
+      setDemoState(nextState);
+      pulseDemoKey();
+    }
+
+    shiftPrompt.addEventListener("pointerdown", () => {
+      focusDemoPrompt();
+    });
+
+    shiftPrompt.addEventListener("click", () => {
+      focusDemoPrompt();
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.repeat) {
+        return;
+      }
+
+      if (hasConflictingModifier(event)) {
+        resetShiftTracking();
+        return;
+      }
+
+      if (event.code === "ShiftLeft") {
+        leftShiftDown = true;
+        leftShiftAlone = true;
+        leftShiftStartedAt = performance.now();
+        return;
+      }
+
+      if (leftShiftDown) {
+        leftShiftAlone = false;
+      }
+    }, true);
+
+    document.addEventListener("keyup", (event) => {
+      if (hasConflictingModifier(event)) {
+        resetShiftTracking();
+        return;
+      }
+
+      if (event.code !== "ShiftLeft") {
+        return;
+      }
+
+      const elapsed = leftShiftStartedAt > 0 ? performance.now() - leftShiftStartedAt : Number.POSITIVE_INFINITY;
+      if (leftShiftDown && leftShiftAlone && elapsed < 1500) {
+        toggleDemoState();
+      }
+
+      resetShiftTracking();
+    }, true);
+
+    window.addEventListener("blur", resetShiftTracking);
+    window.addEventListener("pagehide", resetShiftTracking);
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) {
+        resetShiftTracking();
+      }
+    });
+
+    async function loadRelease() {
+      try {
+        const response = await fetch(latestReleaseApiUrl, {
+          headers: {
+            Accept: "application/vnd.github+json",
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error(`GitHub API request failed: ${response.status}`);
+        }
+
+        const release = await response.json();
+        const version = release.tag_name || "릴리즈 없음";
+
+        releaseVersion.textContent = version;
+        downloadButton.href = release.html_url || releasesUrl;
+      } catch (error) {
+        releaseVersion.textContent = "릴리즈 준비 중";
+        downloadButton.href = releasesUrl;
+      }
+    }
+
+    applyInitialGradient();
+    focusDemoPrompt();
+    void loadRelease();
+  </script>
+</body>
+
+</html>
