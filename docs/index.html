@@ -277,7 +277,7 @@
       font-size: clamp(1.24rem, 2.9vw, 1.72rem);
       font-weight: 700;
       letter-spacing: -0.03em;
-      cursor: pointer;
+      cursor: default;
       user-select: none;
       -webkit-tap-highlight-color: transparent;
       outline: none;
@@ -579,11 +579,9 @@
     const rootStyle = document.documentElement.style;
     const gradientColors = ["#ff5400", "#ff7b00", "#ffb703", "#ffd166", "#ff4d6d", "#f9418e", "#d65db1", "#9d4edd", "#00a896", "#72efdd", "#4cc9f0", "#4361ee"];
     let demoState = "eng";
-    let leftShiftDown = false;
-    let leftShiftAlone = false;
-    let leftShiftStartedAt = 0;
     let releaseTimer = null;
     let recolorTimer = null;
+    let lastShiftHandledAt = -1;
 
     function setDemoState(nextState) {
       demoState = nextState;
@@ -655,14 +653,12 @@
       shiftPrompt.focus({ preventScroll: true });
     }
 
-    function resetShiftTracking() {
-      leftShiftDown = false;
-      leftShiftAlone = false;
-      leftShiftStartedAt = 0;
-    }
-
     function hasConflictingModifier(event) {
       return event.altKey || event.ctrlKey || event.metaKey;
+    }
+
+    function isLeftShiftEvent(event) {
+      return event.code === "ShiftLeft" || (event.key === "Shift" && event.location === KeyboardEvent.DOM_KEY_LOCATION_LEFT);
     }
 
     function toggleDemoState() {
@@ -673,61 +669,28 @@
       pulseDemoKey();
     }
 
-    shiftPrompt.addEventListener("pointerdown", () => {
+    function handleLeftShiftPress(event) {
+      if (event.repeat || hasConflictingModifier(event) || !isLeftShiftEvent(event)) {
+        return;
+      }
+
+      if (lastShiftHandledAt === event.timeStamp) {
+        return;
+      }
+
+      lastShiftHandledAt = event.timeStamp;
+      toggleDemoState();
+    }
+
+    document.addEventListener("pointerdown", () => {
       focusDemoPrompt();
-    });
+    }, true);
 
     shiftPrompt.addEventListener("click", () => {
       focusDemoPrompt();
     });
 
-    document.addEventListener("keydown", (event) => {
-      if (event.repeat) {
-        return;
-      }
-
-      if (hasConflictingModifier(event)) {
-        resetShiftTracking();
-        return;
-      }
-
-      if (event.code === "ShiftLeft") {
-        leftShiftDown = true;
-        leftShiftAlone = true;
-        leftShiftStartedAt = performance.now();
-        return;
-      }
-
-      if (leftShiftDown) {
-        leftShiftAlone = false;
-      }
-    }, true);
-
-    document.addEventListener("keyup", (event) => {
-      if (hasConflictingModifier(event)) {
-        resetShiftTracking();
-        return;
-      }
-
-      if (event.code !== "ShiftLeft") {
-        return;
-      }
-
-      const elapsed = leftShiftStartedAt > 0 ? performance.now() - leftShiftStartedAt : Number.POSITIVE_INFINITY;
-      if (leftShiftDown && leftShiftAlone && elapsed < 1500) {
-        toggleDemoState();
-      }
-
-      resetShiftTracking();
-    }, true);
-
-    window.addEventListener("blur", resetShiftTracking);
-    window.addEventListener("pagehide", resetShiftTracking);
-    document.addEventListener("visibilitychange", () => {
-      if (document.hidden) {
-        resetShiftTracking();
-      }
-    });
+    window.addEventListener("keydown", handleLeftShiftPress, true);
 
     async function loadRelease() {
       try {
