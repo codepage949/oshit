@@ -11,10 +11,13 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
     SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP,
     VK_HANGUL, VK_LSHIFT,
 };
+use windows::Win32::UI::Input::Ime::{
+    ImmGetDefaultIMEWnd, COMPOSITIONFORM, IMC_SETCOMPOSITIONWINDOW,
+};
 use windows::Win32::UI::WindowsAndMessaging::{
-    CallNextHookEx, GetMessageW, PostThreadMessageW, SetWindowsHookExW, UnhookWindowsHookEx,
-    HHOOK, KBDLLHOOKSTRUCT, MSG, WH_KEYBOARD_LL, WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN,
-    WM_SYSKEYUP, WM_USER,
+    CallNextHookEx, GetForegroundWindow, GetMessageW, PostThreadMessageW, SendMessageW,
+    SetWindowsHookExW, UnhookWindowsHookEx, HHOOK, KBDLLHOOKSTRUCT, MSG, WH_KEYBOARD_LL,
+    WM_IME_CONTROL, WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_USER,
 };
 
 fn log_path() -> String {
@@ -129,6 +132,28 @@ unsafe extern "system" fn keyboard_hook(n_code: i32, w_param: WPARAM, l_param: L
 /// 표준 입력 파이프라인을 통해 VK_HANGUL을 처리하므로 범용으로 동작한다.
 fn toggle_ime() {
     unsafe {
+        // IME 조합창 숨김 처리 (CFS_EXCLUDE 적용: 커밋 30722e16 방식)
+        // 일부 앱에서 한/영 전환 시 나타나는 조합창을 억제하기 위해
+        // 현재 포커스된 윈도우의 IME 조합창 설정을 CFS_EXCLUDE(0x80)로 강제한다.
+        let foreground_hwnd = GetForegroundWindow();
+        if !foreground_hwnd.is_invalid() {
+            let ime_hwnd = ImmGetDefaultIMEWnd(foreground_hwnd);
+            if !ime_hwnd.is_invalid() {
+                // CFS_EXCLUDE (0x80)는 공식적으로는 CANDIDATEFORM에서 사용되지만,
+                // COMPOSITIONFORM의 dwStyle에 사용하면 많은 IME에서 조합창을 숨기는 효과가 있음.
+                let mut cf = COMPOSITIONFORM {
+                    dwStyle: 0x80,
+                    ..Default::default()
+                };
+                SendMessageW(
+                    ime_hwnd,
+                    WM_IME_CONTROL,
+                    WPARAM(IMC_SETCOMPOSITIONWINDOW as _),
+                    LPARAM(&mut cf as *mut _ as _),
+                );
+            }
+        }
+
         eprintln!("[DEBUG] toggle_ime: SendInput(VK_HANGUL)");
         let inputs = [
             INPUT {
