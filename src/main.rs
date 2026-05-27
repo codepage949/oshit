@@ -4,7 +4,7 @@ use std::io::Write;
 use std::mem::size_of;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
-use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
+use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, SIZE, WPARAM};
 use windows::Win32::System::SystemInformation::GetLocalTime;
 use windows::Win32::System::Threading::GetCurrentThreadId;
 use windows::Win32::UI::Input::KeyboardAndMouse::{
@@ -16,8 +16,8 @@ use windows::Win32::UI::Input::Ime::{
     ImmGetDefaultIMEWnd, COMPOSITIONFORM, IMC_SETCOMPOSITIONWINDOW,
 };
 use windows::Win32::Graphics::Gdi::{
-    BeginPaint, EndPaint, FillRect, GetStockObject, InvalidateRect, SelectObject,
-    SetBkMode, SetTextColor, TextOutW, BLACK_BRUSH, HBRUSH, PAINTSTRUCT, TRANSPARENT,
+    BeginPaint, CreateFontW, EndPaint, FillRect, GetStockObject, GetTextExtentPoint32W, InvalidateRect,
+    SelectObject, SetBkMode, SetTextColor, TextOutW, BLACK_BRUSH, FW_BOLD, HBRUSH, PAINTSTRUCT, TRANSPARENT,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     CallNextHookEx, CreateWindowExW, DefWindowProcW, DispatchMessageW, GetForegroundWindow,
@@ -168,20 +168,31 @@ unsafe extern "system" fn osd_window_proc(
                 let hdc = BeginPaint(hwnd, &mut ps);
                 let rect = ps.rcPaint;
 
-                // 배경 채우기 (반투명은 레이어드 윈도우 속성으로 처리됨)
+                // 배경 채우기
                 FillRect(hdc, &rect, HBRUSH(GetStockObject(BLACK_BRUSH).0));
 
                 SetBkMode(hdc, TRANSPARENT);
                 SetTextColor(hdc, windows::Win32::Foundation::COLORREF(0xFFFFFF)); // White
 
-                let font = GetStockObject(windows::Win32::Graphics::Gdi::DEFAULT_GUI_FONT);
+                let font = CreateFontW(
+                    32, 0, 0, 0, FW_BOLD.0 as i32, 0, 0, 0, 0, 0, 0, 0, 0,
+                    windows::core::w!("Malgun Gothic"),
+                );
                 let old_font = SelectObject(hdc, font);
 
                 let text = OSD_TEXT.lock().unwrap();
                 let text_u16: Vec<u16> = text.encode_utf16().collect();
-                let _ = TextOutW(hdc, 20, 10, &text_u16);
+                
+                let mut size = SIZE::default();
+                let _ = GetTextExtentPoint32W(hdc, &text_u16, &mut size);
+
+                let x = (rect.right - rect.left - size.cx) / 2;
+                let y = (rect.bottom - rect.top - size.cy) / 2;
+
+                let _ = TextOutW(hdc, x, y, &text_u16);
 
                 SelectObject(hdc, old_font);
+                let _ = windows::Win32::Graphics::Gdi::DeleteObject(font);
 
                 let _ = EndPaint(hwnd, &ps);
             }
