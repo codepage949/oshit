@@ -2,7 +2,7 @@
 
 use std::io::Write;
 use std::mem::size_of;
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::System::SystemInformation::GetLocalTime;
@@ -16,8 +16,8 @@ use windows::Win32::UI::Input::Ime::{
     ImmGetDefaultIMEWnd, COMPOSITIONFORM, IMC_SETCOMPOSITIONWINDOW,
 };
 use windows::Win32::Graphics::Gdi::{
-    BeginPaint, CreateFontW, EndPaint, FillRect, GetStockObject, InvalidateRect, SelectObject,
-    SetBkMode, SetTextColor, TextOutW, BLACK_BRUSH, FW_BOLD, HBRUSH, PAINTSTRUCT, TRANSPARENT,
+    BeginPaint, EndPaint, FillRect, GetStockObject, InvalidateRect, SelectObject,
+    SetBkMode, SetTextColor, TextOutW, BLACK_BRUSH, HBRUSH, PAINTSTRUCT, TRANSPARENT,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     CallNextHookEx, CreateWindowExW, DefWindowProcW, DispatchMessageW, GetForegroundWindow,
@@ -85,7 +85,8 @@ static LSHIFT_DOWN: AtomicBool = AtomicBool::new(false);
 static ESC_DOWN: AtomicBool = AtomicBool::new(false);
 static LSHIFT_ALONE: AtomicBool = AtomicBool::new(false);
 static IS_COMBO: AtomicBool = AtomicBool::new(false);
-static MAIN_THREAD_ID: AtomicU32 = AtomicU32::new(0);
+static MAIN_THREAD_ID: AtomicUsize = AtomicUsize::new(0);
+static HOOK_HANDLE: AtomicUsize = AtomicUsize::new(0);
 
 const WM_TOGGLE_IME: u32 = WM_USER;
 const WM_TOGGLE_BYPASS: u32 = WM_USER + 1;
@@ -96,7 +97,7 @@ use std::collections::HashSet;
 use std::sync::{Mutex, OnceLock};
 
 static BYPASS_WINDOWS: OnceLock<Mutex<HashSet<isize>>> = OnceLock::new();
-static OSD_HWND: AtomicU32 = AtomicU32::new(0);
+static OSD_HWND: AtomicUsize = AtomicUsize::new(0);
 static OSD_TEXT: Mutex<String> = Mutex::new(String::new());
 
 fn is_bypassed(hwnd: HWND) -> bool {
@@ -173,22 +174,7 @@ unsafe extern "system" fn osd_window_proc(
                 SetBkMode(hdc, TRANSPARENT);
                 SetTextColor(hdc, windows::Win32::Foundation::COLORREF(0xFFFFFF)); // White
 
-                let font = CreateFontW(
-                    40,
-                    0,
-                    0,
-                    0,
-                    FW_BOLD.0 as i32,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    windows::core::w!("Malgun Gothic"),
-                );
+                let font = GetStockObject(windows::Win32::Graphics::Gdi::DEFAULT_GUI_FONT);
                 let old_font = SelectObject(hdc, font);
 
                 let text = OSD_TEXT.lock().unwrap();
@@ -196,7 +182,6 @@ unsafe extern "system" fn osd_window_proc(
                 let _ = TextOutW(hdc, 20, 10, &text_u16);
 
                 SelectObject(hdc, old_font);
-                let _ = windows::Win32::Graphics::Gdi::DeleteObject(font);
 
                 let _ = EndPaint(hwnd, &ps);
             }
@@ -257,21 +242,25 @@ fn setup_osd(instance: windows::Win32::Foundation::HINSTANCE) -> HWND {
         SetLayeredWindowAttributes(hwnd, windows::Win32::Foundation::COLORREF(0), 200, LWA_ALPHA)
             .unwrap();
 
-        OSD_HWND.store(hwnd.0 as _, Ordering::SeqCst);
+        OSD_HWND.store(hwnd.0 as _, Ordering::Relaxed);
         hwnd
     }
 }
 
+use std::ffi::c_void;
+
+// ...
+
 unsafe extern "system" fn keyboard_hook(n_code: i32, w_param: WPARAM, l_param: LPARAM) -> LRESULT {
     if n_code >= 0 {
         if l_param.0 == 0 {
-            return unsafe { CallNextHookEx(HHOOK::default(), n_code, w_param, l_param) };
+            return unsafe { CallNextHookEx(HHOOK(HOOK_HANDLE.load(Ordering::Relaxed) as *mut c_void), n_code, w_param, l_param) };
         }
         let kb = unsafe { &*(l_param.0 as *const KBDLLHOOKSTRUCT) };
 
         // SendInput으로 주입된 키는 무시 (VK_HANGUL 재진입 방지)
         if kb.flags.0 & LLKHF_INJECTED != 0 {
-            return unsafe { CallNextHookEx(HHOOK::default(), n_code, w_param, l_param) };
+            return unsafe { CallNextHookEx(HHOOK(HOOK_HANDLE.load(Ordering::Relaxed) as *mut c_void), n_code, w_param, l_param) };
         }
 
         let msg = w_param.0 as u32;
@@ -279,7 +268,7 @@ unsafe extern "system" fn keyboard_hook(n_code: i32, w_param: WPARAM, l_param: L
             WM_KEYDOWN | WM_SYSKEYDOWN => {
                 let vk = kb.vkCode as u16;
                 if vk == VK_LSHIFT.0 {
-                    if !LSHIFT_DOWN.swap(true, Ordering::SeqCst) {
+                    if !LSHIFT_DOWN.swap(true, Ordering::Relaxed) {
                         eprintln!("[DEBUG] LShift DOWN");
                         // 다른 수정키(Ctrl, Alt, Win)나 RShift가 눌려있으면 단독 입력으로 보지 않음
                         let ctrl = (unsafe { GetKeyState(VK_CONTROL.0 as i32) } as u16) & 0x8000 != 0;
@@ -289,49 +278,49 @@ unsafe extern "system" fn keyboard_hook(n_code: i32, w_param: WPARAM, l_param: L
                         let rshift = (unsafe { GetKeyState(VK_RSHIFT.0 as i32) } as u16) & 0x8000 != 0;
 
                         if ctrl || alt || win || rshift {
-                            LSHIFT_ALONE.store(false, Ordering::SeqCst);
-                        } else if ESC_DOWN.load(Ordering::SeqCst) {
-                            LSHIFT_ALONE.store(false, Ordering::SeqCst);
-                            IS_COMBO.store(true, Ordering::SeqCst);
+                            LSHIFT_ALONE.store(false, Ordering::Relaxed);
+                        } else if ESC_DOWN.load(Ordering::Relaxed) {
+                            LSHIFT_ALONE.store(false, Ordering::Relaxed);
+                            IS_COMBO.store(true, Ordering::Relaxed);
                         } else {
-                            LSHIFT_ALONE.store(true, Ordering::SeqCst);
+                            LSHIFT_ALONE.store(true, Ordering::Relaxed);
                         }
                     }
                 } else if vk == VK_ESCAPE.0 {
-                    if !ESC_DOWN.swap(true, Ordering::SeqCst) {
+                    if !ESC_DOWN.swap(true, Ordering::Relaxed) {
                         eprintln!("[DEBUG] ESC DOWN");
-                        if LSHIFT_DOWN.load(Ordering::SeqCst) {
-                            LSHIFT_ALONE.store(false, Ordering::SeqCst);
-                            IS_COMBO.store(true, Ordering::SeqCst);
+                        if LSHIFT_DOWN.load(Ordering::Relaxed) {
+                            LSHIFT_ALONE.store(false, Ordering::Relaxed);
+                            IS_COMBO.store(true, Ordering::Relaxed);
                         }
                     }
                 } else if vk == VK_SHIFT.0 || vk == VK_RSHIFT.0 {
                     // 무시
                 } else {
-                    LSHIFT_ALONE.store(false, Ordering::SeqCst);
-                    IS_COMBO.store(false, Ordering::SeqCst);
+                    LSHIFT_ALONE.store(false, Ordering::Relaxed);
+                    IS_COMBO.store(false, Ordering::Relaxed);
                     eprintln!("[DEBUG] 다른 키 DOWN (vk=0x{:02X}) → 조합 무효화", kb.vkCode);
                 }
             }
             WM_KEYUP | WM_SYSKEYUP => {
                 let vk = kb.vkCode as u16;
                 if vk == VK_LSHIFT.0 {
-                    LSHIFT_DOWN.store(false, Ordering::SeqCst);
-                    if LSHIFT_ALONE.swap(false, Ordering::SeqCst) {
+                    LSHIFT_DOWN.store(false, Ordering::Relaxed);
+                    if LSHIFT_ALONE.swap(false, Ordering::Relaxed) {
                         eprintln!("[DEBUG] LShift UP (단독) → IME 전환 요청");
-                        let tid = MAIN_THREAD_ID.load(Ordering::SeqCst);
-                        let _ = unsafe { PostThreadMessageW(tid, WM_TOGGLE_IME, WPARAM(0), LPARAM(0)) };
-                    } else if IS_COMBO.swap(false, Ordering::SeqCst) {
+                        let tid = MAIN_THREAD_ID.load(Ordering::Relaxed);
+                        let _ = unsafe { PostThreadMessageW(tid as u32, WM_TOGGLE_IME, WPARAM(0), LPARAM(0)) };
+                    } else if IS_COMBO.swap(false, Ordering::Relaxed) {
                         eprintln!("[DEBUG] LShift + ESC (LShift released) → Bypass 전환 요청");
-                        let tid = MAIN_THREAD_ID.load(Ordering::SeqCst);
-                        let _ = unsafe { PostThreadMessageW(tid, WM_TOGGLE_BYPASS, WPARAM(0), LPARAM(0)) };
+                        let tid = MAIN_THREAD_ID.load(Ordering::Relaxed);
+                        let _ = unsafe { PostThreadMessageW(tid as u32, WM_TOGGLE_BYPASS, WPARAM(0), LPARAM(0)) };
                     }
                 } else if vk == VK_ESCAPE.0 {
-                    ESC_DOWN.store(false, Ordering::SeqCst);
-                    if IS_COMBO.swap(false, Ordering::SeqCst) {
+                    ESC_DOWN.store(false, Ordering::Relaxed);
+                    if IS_COMBO.swap(false, Ordering::Relaxed) {
                         eprintln!("[DEBUG] LShift + ESC (ESC released) → Bypass 전환 요청");
-                        let tid = MAIN_THREAD_ID.load(Ordering::SeqCst);
-                        let _ = unsafe { PostThreadMessageW(tid, WM_TOGGLE_BYPASS, WPARAM(0), LPARAM(0)) };
+                        let tid = MAIN_THREAD_ID.load(Ordering::Relaxed);
+                        let _ = unsafe { PostThreadMessageW(tid as u32, WM_TOGGLE_BYPASS, WPARAM(0), LPARAM(0)) };
                     }
                 } else if vk == VK_SHIFT.0 || vk == VK_RSHIFT.0 {
                     // 무시
@@ -341,7 +330,7 @@ unsafe extern "system" fn keyboard_hook(n_code: i32, w_param: WPARAM, l_param: L
         }
     }
 
-    unsafe { CallNextHookEx(HHOOK::default(), n_code, w_param, l_param) }
+    unsafe { CallNextHookEx(HHOOK(HOOK_HANDLE.load(Ordering::Relaxed) as *mut c_void), n_code, w_param, l_param) }
 }
 
 /// VK_HANGUL 키를 시뮬레이션하여 한/영 전환.
@@ -414,7 +403,7 @@ fn main() {
     };
 
     unsafe {
-        MAIN_THREAD_ID.store(GetCurrentThreadId(), Ordering::SeqCst);
+        MAIN_THREAD_ID.store(GetCurrentThreadId() as usize, Ordering::SeqCst);
     }
 
     let _osd_hwnd = setup_osd(instance.into());
@@ -423,6 +412,7 @@ fn main() {
         SetWindowsHookExW(WH_KEYBOARD_LL, Some(keyboard_hook), None, 0)
             .expect("키보드 훅 설치 실패")
     };
+    HOOK_HANDLE.store(hook.0 as usize, Ordering::Relaxed);
 
     println!("왼쪽 Shift로 한/영 전환 활성화됨 (종료: Ctrl+C)");
 
