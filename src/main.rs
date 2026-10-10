@@ -9,7 +9,7 @@ use windows::Win32::System::SystemInformation::GetLocalTime;
 use windows::Win32::System::Threading::GetCurrentThreadId;
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     GetKeyState, SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS,
-    KEYEVENTF_KEYUP, VK_CONTROL, VK_ESCAPE, VK_HANGUL, VK_LSHIFT, VK_LWIN, VK_MENU, VK_RSHIFT,
+    KEYEVENTF_KEYUP, VK_CONTROL, VK_RSHIFT, VK_HANGUL, VK_LSHIFT, VK_LWIN, VK_MENU,
     VK_RWIN, VK_SHIFT,
 };
 use windows::Win32::UI::Input::Ime::{
@@ -82,7 +82,7 @@ fn setup_panic_hook() {
 }
 
 static LSHIFT_DOWN: AtomicBool = AtomicBool::new(false);
-static ESC_DOWN: AtomicBool = AtomicBool::new(false);
+static RSHIFT_DOWN: AtomicBool = AtomicBool::new(false);
 static LSHIFT_ALONE: AtomicBool = AtomicBool::new(false);
 static IS_COMBO: AtomicBool = AtomicBool::new(false);
 static MAIN_THREAD_ID: AtomicUsize = AtomicUsize::new(0);
@@ -281,31 +281,31 @@ unsafe extern "system" fn keyboard_hook(n_code: i32, w_param: WPARAM, l_param: L
                 if vk == VK_LSHIFT.0 {
                     if !LSHIFT_DOWN.swap(true, Ordering::Relaxed) {
                         eprintln!("[DEBUG] LShift DOWN");
-                        // 다른 수정키(Ctrl, Alt, Win)나 RShift가 눌려있으면 단독 입력으로 보지 않음
+                        // 다른 수정키(Ctrl, Alt, Win)가 눌려있으면 단독 입력으로 보지 않음
                         let ctrl = (unsafe { GetKeyState(VK_CONTROL.0 as i32) } as u16) & 0x8000 != 0;
                         let alt = (unsafe { GetKeyState(VK_MENU.0 as i32) } as u16) & 0x8000 != 0;
                         let win = (unsafe { GetKeyState(VK_LWIN.0 as i32) } as u16) & 0x8000 != 0
                             || (unsafe { GetKeyState(VK_RWIN.0 as i32) } as u16) & 0x8000 != 0;
-                        let rshift = (unsafe { GetKeyState(VK_RSHIFT.0 as i32) } as u16) & 0x8000 != 0;
+                        // let rshift = (unsafe { GetKeyState(VK_RSHIFT.0 as i32) } as u16) & 0x8000 != 0;
 
-                        if ctrl || alt || win || rshift {
+                        if ctrl || alt || win {
                             LSHIFT_ALONE.store(false, Ordering::Relaxed);
-                        } else if ESC_DOWN.load(Ordering::Relaxed) {
+                        } else if RSHIFT_DOWN.load(Ordering::Relaxed) {
                             LSHIFT_ALONE.store(false, Ordering::Relaxed);
                             IS_COMBO.store(true, Ordering::Relaxed);
                         } else {
                             LSHIFT_ALONE.store(true, Ordering::Relaxed);
                         }
                     }
-                } else if vk == VK_ESCAPE.0 {
-                    if !ESC_DOWN.swap(true, Ordering::Relaxed) {
-                        eprintln!("[DEBUG] ESC DOWN");
+                } else if vk == VK_RSHIFT.0 {
+                    if !RSHIFT_DOWN.swap(true, Ordering::Relaxed) {
+                        eprintln!("[DEBUG] RShift DOWN");
                         if LSHIFT_DOWN.load(Ordering::Relaxed) {
                             LSHIFT_ALONE.store(false, Ordering::Relaxed);
                             IS_COMBO.store(true, Ordering::Relaxed);
                         }
                     }
-                } else if vk == VK_SHIFT.0 || vk == VK_RSHIFT.0 {
+                } else if vk == VK_SHIFT.0 {
                     // 무시
                 } else {
                     LSHIFT_ALONE.store(false, Ordering::Relaxed);
@@ -322,18 +322,18 @@ unsafe extern "system" fn keyboard_hook(n_code: i32, w_param: WPARAM, l_param: L
                         let tid = MAIN_THREAD_ID.load(Ordering::Relaxed);
                         let _ = unsafe { PostThreadMessageW(tid as u32, WM_TOGGLE_IME, WPARAM(0), LPARAM(0)) };
                     } else if IS_COMBO.swap(false, Ordering::Relaxed) {
-                        eprintln!("[DEBUG] LShift + ESC (LShift released) → Bypass 전환 요청");
+                        eprintln!("[DEBUG] LShift + RShift (LShift released) → Bypass 전환 요청");
                         let tid = MAIN_THREAD_ID.load(Ordering::Relaxed);
                         let _ = unsafe { PostThreadMessageW(tid as u32, WM_TOGGLE_BYPASS, WPARAM(0), LPARAM(0)) };
                     }
-                } else if vk == VK_ESCAPE.0 {
-                    ESC_DOWN.store(false, Ordering::Relaxed);
+                } else if vk == VK_RSHIFT.0 {
+                    RSHIFT_DOWN.store(false, Ordering::Relaxed);
                     if IS_COMBO.swap(false, Ordering::Relaxed) {
-                        eprintln!("[DEBUG] LShift + ESC (ESC released) → Bypass 전환 요청");
+                        eprintln!("[DEBUG] LShift + RShift (RShift released) → Bypass 전환 요청");
                         let tid = MAIN_THREAD_ID.load(Ordering::Relaxed);
                         let _ = unsafe { PostThreadMessageW(tid as u32, WM_TOGGLE_BYPASS, WPARAM(0), LPARAM(0)) };
                     }
-                } else if vk == VK_SHIFT.0 || vk == VK_RSHIFT.0 {
+                } else if vk == VK_SHIFT.0 {
                     // 무시
                 }
             }
